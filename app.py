@@ -13,30 +13,10 @@ db_config = {
 }
 
 
-def check_database_connection():
-    try:
-        # Update with your actual database credentials
-        connection = mysql.connector.connect(
-            host=os.getenv("DB_HOST"),
-            user=os.getenv("DB_USER"),
-            password=os.getenv("DB_PASS"),
-            database=os.getenv("DB_NAME")
-        )
-        if connection.is_connected():
-            connection.close()
-            return {"status": "connected"}
-    except mysql.connector.Error:
-        return {"status": "not connected"}
-    return {"status": "not connected"}
 
-# Route to check database connection
-@app.route("/check-db-connection", methods=["GET"])
-def check_db_connection():
-    return jsonify(check_database_connection())
 # Function to get a connection to the database
 def get_db_connection():
     return mysql.connector.connect(**db_config)
-
 # Example route to test database connection
 @app.route("/test-db")
 def test_db():
