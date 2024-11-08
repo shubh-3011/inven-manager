@@ -1,3 +1,4 @@
+
 import mysql.connector
 
 # Database connection details
@@ -125,4 +126,31 @@ def stock_out():
         cursor.execute(
             "INSERT INTO cart (barcode_code, item_name, quantity, price_per_unit) VALUES (%s, %s, %s, %s)",
             (barcode, item['item_name'], 1, item['price_per_unit'])
-)
+        )
+        
+        conn.commit()
+        return jsonify(message="Item added to cart and stock quantity updated.")
+    except Exception as e:
+        return jsonify(error=str(e)), 500
+    finally:
+        cursor.close()
+        conn.close()
+
+# View Cart endpoint
+@app.route('/view_cart')
+def view_cart():
+    conn = db_connect()
+    cursor = conn.cursor(dictionary=True)
+    
+    try:
+        cursor.execute("SELECT item_name, quantity,price_per_unit FROM cart")
+        items = cursor.fetchall()
+        return jsonify(items=items)
+    except Exception as e:
+        return jsonify(error=str(e)), 500
+    finally:
+        cursor.close()
+        conn.close()
+
+if __name__ == '__main__':
+    app.run(debug=True, port=3000)
