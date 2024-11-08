@@ -9,10 +9,39 @@
 <body>
     <div class="container">
         <h1>Inventory Management</h1>
+        <!-- Display database connection status -->
+        <div id="db-status" class="db-status">
+            Checking database connection...
+        </div>
         <div class="button-container">
             <a href="stock-in.html" class="btn">Stock In</a>
             <a href="stock-out.html" class="btn">Stock Out</a>
         </div>
     </div>
+
+    <script>
+        // Fetch database connection status from the backend
+        async function checkDatabaseConnection() {
+            try {
+                const response = await fetch("/check-db-connection");
+                const data = await response.json();
+                const dbStatusElement = document.getElementById("db-status");
+                
+                if (data.status === "connected") {
+                    dbStatusElement.textContent = "Database connected successfully!";
+                    dbStatusElement.style.color = "green";
+                } else {
+                    dbStatusElement.textContent = "Failed to connect to the database.";
+                    dbStatusElement.style.color = "red";
+                }
+            } catch (error) {
+                document.getElementById("db-status").textContent = "Error checking database connection.";
+                document.getElementById("db-status").style.color = "red";
+            }
+        }
+
+        // Check database connection on page load
+        window.onload = checkDatabaseConnection;
+    </script>
 </body>
 </html>
