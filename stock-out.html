@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Out</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Stock Out</h1>
+        <div class="button-container">
+            <button class="btn" id="scanBtn">Scan Barcode</button>
+            <button class="btn" id="cartBtn">View Cart</button>
+        </div>
+        <div id="reader" style="width: 100%"></div>
+        <div id="barcode-result"></div>
+        <div id="cart-items"></div>
+        <a href="index.html" class="back-btn">Back to Home</a>
+    </div>
+
+    <script>
+        const scanBtn = document.getElementById('scanBtn');
+        const cartBtn = document.getElementById('cartBtn');
+        const result = document.getElementById('barcode-result');
+        const html5QrCode = new Html5Qrcode("reader");
+        let isScanning = false;
+
+        async function startScanning() {
+            try {
+                const cameras = await Html5Qrcode.getCameras();
+                if (cameras && cameras.length) {
+                    const camera = cameras[0];
+                    await html5QrCode.start(
+                        camera.id,
+                        {
+                            fps: 10,
+                            qrbox: { width: 250, height: 100 },
+                            formatsToSupport: [
+                                Html5QrcodeSupportedFormats.CODE_128
+                            ]
+                        },
+                        async (decodedText) => {
+                            result.innerHTML = `Barcode detected: ${decodedText}`;
+                            await stopScanning();
+                            
+                            try {
+                                const response = await fetch(`/stock_out?barcode=${decodedText}`);
+                                const data = await response.json();
+                                alert(data.message);
+                            } catch (error) {
+                                alert('Error processing barcode: ' + error.message);
+                            }
+                        },
+                        (error) => {}
+                    );
+                    isScanning = true;
+                    scanBtn.textContent = 'Stop Scanning';
+                }
+            } catch (err) {
+                alert('Error accessing camera: ' + err);
+            }
+        }
+
+        async function stopScanning() {
+            if (isScanning) {
+                await html5QrCode.stop();
+                isScanning = false;
+                scanBtn.textContent = 'Scan Barcode';
+            }
+        }
+
+        async function viewCart() {
+            try {
+                const response = await fetch('/view_cart');
+                const data = await response.json();
+                
+                let cartItems = "<h3>Cart Items</h3><ul>";
+                data.items.forEach(item => {
+                    cartItems += `<li>${item.item_name} - Quantity: ${item.quantity}</li>`;
+                });
+                cartItems += "</ul>";
+                document.getElementById('cart-items').innerHTML = cartItems;
+            } catch (error) {
+                alert('Error fetching cart: ' + error.message);
+            }
+        }
+
+        scanBtn.addEventListener('click', async () => {
+            if (!isScanning) await startScanning();
+            else await stopScanning();
+        });
+
+        cartBtn.addEventListener('click', viewCart);
+    </script>
+</body>
+</html>

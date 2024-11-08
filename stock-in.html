@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock In</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Stock In</h1>
+        <div class="button-container">
+            <button class="btn" id="scanBtn">Scan Barcode</button>
+        </div>
+        <div id="reader" style="width: 100%"></div>
+        <div id="barcode-result"></div>
+        <a href="index.html" class="back-btn">Back to Home</a>
+    </div>
+
+    <script>
+        const scanBtn = document.getElementById('scanBtn');
+        const result = document.getElementById('barcode-result');
+        const html5QrCode = new Html5Qrcode("reader");
+        let isScanning = false;
+
+        async function startScanning() {
+            try {
+                const cameras = await Html5Qrcode.getCameras();
+                if (cameras && cameras.length) {
+                    const camera = cameras[0];
+                    await html5QrCode.start(
+                        camera.id,
+                        {
+                            fps: 10,
+                            qrbox: { width: 250, height: 100 },
+                            formatsToSupport: [
+                                Html5QrcodeSupportedFormats.CODE_128
+                            ]
+                        },
+                        async (decodedText) => {
+                            result.innerHTML = `Barcode detected: ${decodedText}`;
+                            await stopScanning();
+                            
+                            try {
+                                const response = await fetch(`/stock_in?barcode=${decodedText}`);
+                                const data = await response.json();
+                                
+                                if (data.promptForDetails) {
+                                    const itemName = prompt("Enter Item Name:");
+                                    const price = prompt("Enter Price per Unit:");
+                                    const quantity = prompt("Enter Quantity:");
+                                    
+                                    if (itemName && price && quantity) {
+                                        const addResponse = await fetch(
+                                            `/add_item?barcode=${decodedText}&item_name=${itemName}&price=${price}&quantity=${quantity}`
+                                        );
+                                        const addData = await addResponse.json();
+                                        alert(addData.message);
+                                    }
+                                } else {
+                                    const quantity = prompt("Enter Quantity:");
+                                    if (quantity) {
+                                        const updateResponse = await fetch(
+                                            `/update_stock?barcode=${decodedText}&quantity=${quantity}`
+                                        );
+                                        const updateData = await updateResponse.json();
+                                        alert(updateData.message);
+                                    }
+                                }
+                            } catch (error) {
+                                alert('Error processing barcode: ' + error.message);
+                            }
+                        },
+                        (error) => {}
+                    );
+                    isScanning = true;
+                    scanBtn.textContent = 'Stop Scanning';
+                }
+            } catch (err) {
+                alert('Error accessing camera: ' + err);
+            }
+        }
+
+        async function stopScanning() {
+            if (isScanning) {
+                await html5QrCode.stop();
+                isScanning = false;
+                scanBtn.textContent = 'Scan Barcode';
+            }
+        }
+
+        scanBtn.addEventListener('click', async () => {
+            if (!isScanning) await startScanning();
+            else await stopScanning();
+        });
+    </script>
+</body>
+</html>
