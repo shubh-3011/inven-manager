@@ -1,18 +1,38 @@
-from flask import Flask, request, jsonify, send_from_directory
-import mysql.connector
 import os
+import mysql.connector
+from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
+# Get database credentials from environment variables
 db_config = {
-    'user': 'root',
-    'password': 'shubh',
-    'host': 'localhost',
-    'database': 'project'
+    "host": os.getenv("DB_HOST"),
+    "user": os.getenv("DB_USER"),
+    "password": os.getenv("DB_PASSWORD"),
+    "database": os.getenv("DB_NAME")
 }
 
-def db_connect():
+# Function to get a connection to the database
+def get_db_connection():
     return mysql.connector.connect(**db_config)
+
+# Example route to test database connection
+@app.route("/test-db")
+def test_db():
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT DATABASE()")
+        db_name = cursor.fetchone()[0]
+        cursor.close()
+        conn.close()
+        return jsonify({"status": "success", "database": db_name})
+    except mysql.connector.Error as err:
+        return jsonify({"status": "error", "message": str(err)}), 500
+
+if __name__ == "__main__":
+    app.run()
+
 
 # Serve static files
 @app.route('/')
