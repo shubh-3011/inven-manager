@@ -1,148 +1,128 @@
-from flask import Flask, request, jsonify
+import mysql.connector
+
+# Database connection details
+db = mysql.connector.connect(
+    host="sql12.freesqldatabase.com",
+    user="sql12743454",
+    password="3YSskmzv6A",
+    database="sql12743454",
+    port=3306
+)
+
+# Verify the connection
+if db.is_connected():
+    print("Connected to the database successfully!")
+else:
+    print("Failed to connect to the database.")
+
+from flask import Flask, request, jsonify, send_from_directory
 import mysql.connector
 import os
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='.')
 
-# Database configuration using environment variables
 db_config = {
-    "host": os.getenv("DB_HOST"),
-    "user": os.getenv("DB_USER"),
-    "password": os.getenv("DB_PASSWORD"),
-    "database": os.getenv("DB_NAME")
+    'user': 'root',
+    'password': 'shubh',
+    'host': 'localhost',
+    'database': 'project'
 }
 
-def get_db_connection():
-    """Create a connection to the MySQL database."""
+def db_connect():
     return mysql.connector.connect(**db_config)
 
-@app.route("/scan_barcode", methods=["POST"])
-def scan_barcode():
-    data = request.get_json()
-    barcode = data.get("barcode")
+# Serve static files
+@app.route('/')
+def index():
+    return send_from_directory('.', 'index.html')
 
-    if not barcode:
-        return jsonify({"error": "No barcode provided"}), 400
+@app.route('/<path:path>')
+def serve_static(path):
+    return send_from_directory('.', path)
 
-    conn = get_db_connection()
+# Stock In endpoint
+@app.route('/stock_in')
+def stock_in():
+    barcode = request.args.get('barcode')
+    conn = db_connect()
     cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM items WHERE barcode_code = %s", (barcode,))
+    item = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return jsonify(promptForDetails=item is None)
 
-    try:
-        # Check if item exists in the 'items' table
-        cursor.execute("SELECT * FROM items WHERE barcode = %s", (barcode,))
-        item = cursor.fetchone()
-
-        if item:
-            # If item exists, add it to 'stock_in' table with quantity
-            cursor.execute("""
-                INSERT INTO stock_in (barcode, item_name, quantity, price)
-                VALUES (%s, %s, %s, %s)
-                ON DUPLICATE KEY UPDATE quantity = quantity + 1
-            """, (barcode, item['item_name'], 1, item['price']))
-            conn.commit()
-            return jsonify({"message": "Stock updated", "item": item}), 200
-        else:
-            # If item does not exist, request item details from the client
-            return jsonify({"message": "Item not found. Provide name, quantity, and price"}), 404
-
-    except mysql.connector.Error as err:
-        return jsonify({"error": f"Database error: {err}"}), 500
-    finally:
-        cursor.close()
-        conn.close()
-
-@app.route("/add_new_item", methods=["POST"])
-def add_new_item():
-    data = request.get_json()
-    barcode = data.get("barcode")
-    item_name = data.get("item_name")
-    quantity = data.get("quantity", 1)
-    price = data.get("price")
-
-    if not all([barcode, item_name, price]):
-        return jsonify({"error": "Missing barcode, item name, or price"}), 400
-
-    conn = get_db_connection()
+# Add item endpoint
+@app.route('/add_item')
+def add_item():
+    barcode = request.args.get('barcode')
+    item_name = request.args.get('item_name')
+    price = request.args.get('price')
+    quantity = request.args.get('quantity')
+    
+    conn = db_connect()
     cursor = conn.cursor()
-
+    
     try:
-        # Add item to 'items' table
-        cursor.execute("""
-            INSERT INTO items (barcode, item_name, price)
-            VALUES (%s, %s, %s)
-        """, (barcode, item_name, price))
-        
-        # Add item to 'stock_in' table with quantity
-        cursor.execute("""
-            INSERT INTO stock_in (barcode, item_name, quantity, price)
-            VALUES (%s, %s, %s, %s)
-        """, (barcode, item_name, quantity, price))
+        cursor.execute(
+            "INSERT INTO items (barcode_code, item_name, price_per_unit) VALUES (%s, %s, %s)",
+            (barcode, item_name, price)
+        )
+        cursor.execute(
+            "INSERT INTO stock_in (barcode_code, item_name, quantity, price_per_unit) VALUES (%s, %s, %s, %s)",
+            (barcode, item_name, quantity, price)
+        )
         conn.commit()
-
-        return jsonify({"message": "Item added to inventory", "item": data}), 201
-
-    except mysql.connector.Error as err:
-        return jsonify({"error": f"Database error: {err}"}), 500
+        return jsonify(message="Item added and stock updated successfully.")
+    except Exception as e:
+        return jsonify(error=str(e)), 500
     finally:
         cursor.close()
         conn.close()
 
-@app.route("/remove_from_stock", methods=["POST"])
-def remove_from_stock():
-    data = request.get_json()
-    barcode = data.get("barcode")
-
-    if not barcode:
-        return jsonify({"error": "No barcode provided"}), 400
-
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-
+# Update stock endpoint
+@app.route('/update_stock')
+def update_stock():
+    barcode = request.args.get('barcode')
+    quantity = request.args.get('quantity')
+    
+    conn = db_connect()
+    cursor = conn.cursor()
+    
     try:
-        # Check if item exists in 'stock_in' table and reduce quantity
-        cursor.execute("SELECT * FROM stock_in WHERE barcode = %s", (barcode,))
-        stock_item = cursor.fetchone()
-
-        if stock_item and stock_item["quantity"] > 0:
-            cursor.execute("""
-                UPDATE stock_in
-                SET quantity = quantity - 1
-                WHERE barcode = %s
-            """, (barcode,))
-            conn.commit()
-
-            # Add to 'cart' table for checkout
-            cursor.execute("""
-                INSERT INTO cart (barcode, item_name)
-                VALUES (%s, %s)
-            """, (barcode, stock_item['item_name']))
-            conn.commit()
-            return jsonify({"message": "Item removed from stock and added to cart"}), 200
-        else:
-            return jsonify({"error": "Item not in stock or quantity is zero"}), 404
-
-    except mysql.connector.Error as err:
-        return jsonify({"error": f"Database error: {err}"}), 500
+        cursor.execute(
+            "UPDATE stock_in SET quantity = quantity + %s WHERE barcode_code = %s",
+            (quantity, barcode)
+        )
+        conn.commit()
+        return jsonify(message="Stock quantity updated successfully.")
+    except Exception as e:
+        return jsonify(error=str(e)), 500
     finally:
         cursor.close()
         conn.close()
 
-@app.route("/view_cart", methods=["GET"])
-def view_cart():
-    conn = get_db_connection()
+# Stock Out endpoint
+@app.route('/stock_out')
+def stock_out():
+    barcode = request.args.get('barcode')
+    
+    conn = db_connect()
     cursor = conn.cursor(dictionary=True)
-
+    
     try:
-        cursor.execute("SELECT * FROM cart")
-        cart_items = cursor.fetchall()
-        return jsonify({"cart": cart_items}), 200
-
-    except mysql.connector.Error as err:
-        return jsonify({"error": f"Database error: {err}"}), 500
-    finally:
-        cursor.close()
-        conn.close()
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port, debug=True)
+        cursor.execute("SELECT * FROM items WHERE barcode_code = %s", (barcode,))
+        item = cursor.fetchone()
+        
+        if not item:
+            return jsonify(message="Item not found in inventory.")
+        
+        cursor.execute(
+            "UPDATE stock_in SET quantity = quantity - 1 WHERE barcode_code = %s AND quantity > 0",
+            (barcode,)
+        )
+        
+        cursor.execute(
+            "INSERT INTO cart (barcode_code, item_name, quantity, price_per_unit) VALUES (%s, %s, %s, %s)",
+            (barcode, item['item_name'], 1, item['price_per_unit'])
+)
