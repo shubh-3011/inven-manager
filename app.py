@@ -4,9 +4,9 @@ import mysql.connector
 # Database connection details
 db = mysql.connector.connect(
     host="sql12.freesqldatabase.com",
-    user="sql12743454",
-    password="3YSskmzv6A",
-    database="sql12743454",
+    user="",
+    password="",
+    database="",
     port=3306
 )
 
