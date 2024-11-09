@@ -31,9 +31,10 @@
             try {
                 const cameras = await Html5Qrcode.getCameras();
                 if (cameras && cameras.length) {
-                    const camera = cameras[0];
+                    // Prefer the back camera, or use the first camera if a back camera is unavailable
+                    const backCamera = cameras.find(camera => camera.label.toLowerCase().includes('back')) || cameras[0];
                     await html5QrCode.start(
-                        camera.id,
+                        backCamera.id,
                         {
                             fps: 10,
                             qrbox: { width: 250, height: 100 },
@@ -78,7 +79,7 @@
                 
                 let cartItems = "<h3>Cart Items</h3><ul>";
                 data.items.forEach(item => {
-                    cartItems += `<li>${item.item_name} - Quantity: ${item.quantity}</li>`;
+                    cartItems += `<li>${item.item_name} - Quantity: ${item.quantity} - Rs: ${item.price_per_unit}</li>`;
                 });
                 cartItems += "</ul>";
                 document.getElementById('cart-items').innerHTML = cartItems;
