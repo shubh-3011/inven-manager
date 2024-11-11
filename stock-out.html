@@ -17,6 +17,7 @@
         <div id="reader" style="width: 100%"></div>
         <div id="barcode-result"></div>
         <div id="cart-items"></div>
+        <div id="error-message" style="color: red; margin-top: 10px;"></div>
         <a href="index.html" class="back-btn">Back to Home</a>
     </div>
 
@@ -24,6 +25,7 @@
         const scanBtn = document.getElementById('scanBtn');
         const cartBtn = document.getElementById('cartBtn');
         const result = document.getElementById('barcode-result');
+        const errorMessage = document.getElementById('error-message');
         const html5QrCode = new Html5Qrcode("reader");
         let isScanning = false;
 
@@ -31,10 +33,9 @@
             try {
                 const cameras = await Html5Qrcode.getCameras();
                 if (cameras && cameras.length) {
-                    // Prefer the back camera, or use the first camera if a back camera is unavailable
-                    const backCamera = cameras.find(camera => camera.label.toLowerCase().includes('back')) || cameras[0];
+                    const camera = cameras[0];
                     await html5QrCode.start(
-                        backCamera.id,
+                        camera.id,
                         {
                             fps: 10,
                             qrbox: { width: 250, height: 100 },
@@ -44,14 +45,21 @@
                         },
                         async (decodedText) => {
                             result.innerHTML = `Barcode detected: ${decodedText}`;
+                            errorMessage.innerHTML = '';
                             await stopScanning();
                             
                             try {
                                 const response = await fetch(`/stock_out?barcode=${decodedText}`);
                                 const data = await response.json();
-                                alert(data.message);
+                                
+                                if (data.message.includes("out of stock")) {
+                                    errorMessage.innerHTML = data.message;
+                                } else {
+                                    alert(data.message);
+                                    errorMessage.innerHTML = '';
+                                }
                             } catch (error) {
-                                alert('Error processing barcode: ' + error.message);
+                                errorMessage.innerHTML = 'Error processing barcode: ' + error.message;
                             }
                         },
                         (error) => {}
@@ -60,7 +68,7 @@
                     scanBtn.textContent = 'Stop Scanning';
                 }
             } catch (err) {
-                alert('Error accessing camera: ' + err);
+                errorMessage.innerHTML = 'Error accessing camera: ' + err;
             }
         }
 
@@ -74,17 +82,21 @@
 
         async function viewCart() {
             try {
+                errorMessage.innerHTML = '';
                 const response = await fetch('/view_cart');
                 const data = await response.json();
                 
                 let cartItems = "<h3>Cart Items</h3><ul>";
+                let total = 0;
                 data.items.forEach(item => {
-                    cartItems += `<li>${item.item_name} - Quantity: ${item.quantity} - Rs: ${item.price_per_unit}</li>`;
+                    const itemTotal = item.quantity * item.price_per_unit;
+                    total += itemTotal;
+                    cartItems += `<li>${item.item_name} - Quantity: ${item.quantity} - Rs: ${item.price_per_unit} (Total: Rs ${itemTotal})</li>`;
                 });
-                cartItems += "</ul>";
+                cartItems += `</ul><p><strong>Total Amount: Rs ${total.toFixed(2)}</strong></p>`;
                 document.getElementById('cart-items').innerHTML = cartItems;
             } catch (error) {
-                alert('Error fetching cart: ' + error.message);
+                errorMessage.innerHTML = 'Error fetching cart: ' + error.message;
             }
         }
 
