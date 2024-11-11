@@ -122,14 +122,23 @@ def stock_out():
         cursor = conn.cursor(dictionary=True)
         
         try:
+            # First check stock quantity
+            cursor.execute("SELECT quantity FROM stock_in WHERE barcode_code = %s", (barcode,))
+            stock = cursor.fetchone()
+            
+            if not stock or stock['quantity'] <= 0:
+                return jsonify(message="This item is out of stock!")
+            
+            # Get item details
             cursor.execute("SELECT * FROM items WHERE barcode_code = %s", (barcode,))
             item = cursor.fetchone()
             
             if not item:
                 return jsonify(message="Item not found in inventory.")
             
+            # Update stock quantity and add to cart
             cursor.execute(
-                "UPDATE stock_in SET quantity = quantity - 1 WHERE barcode_code = %s AND quantity > 0",
+                "UPDATE stock_in SET quantity = quantity - 1 WHERE barcode_code = %s",
                 (barcode,)
             )
             
@@ -170,4 +179,3 @@ def view_cart():
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=3000)
-
