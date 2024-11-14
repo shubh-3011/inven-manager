@@ -5,10 +5,10 @@ app = Flask(__name__, static_folder='.')
 
 # Database Configuration
 DB_CONFIG = {
-    'host': '',
-    'user': '',
-    'password': '',
-    'database': '',
+    'host': 'sql12.freesqldatabase.com',
+    'user': 'sql12743454',
+    'password': '3YSskmzv6A',
+    'database': 'sql12743454',
     'port': 3306
 }
 
